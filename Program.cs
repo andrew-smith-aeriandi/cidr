@@ -9,8 +9,7 @@ namespace Cidr
         {
             var cidrs = args
                 .ParseCidrs()
-                .ConsolidateCidrs()
-                .Select(t => t.ToIPNetwork());
+                .ConsolidateCidrs();
 
             foreach (var cidr in cidrs)
             {

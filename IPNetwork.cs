@@ -35,6 +35,13 @@ namespace Cidr
         {
             return $"{FirstIpAddress}/{Cidr}";
         }
+
+        public static IPNetwork Parse(string value)
+        {
+            var index = value.IndexOf('/');
+            return index >= 0
+                ? new IPNetwork(IPAddress.Parse(value.Substring(0, index)), int.Parse(value.Substring(index + 1)))
+                : new IPNetwork(IPAddress.Parse(value), 32);
+        }
     }
 }
-

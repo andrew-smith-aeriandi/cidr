@@ -1,30 +1,53 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 
 namespace Cidr
 {
-    public static class UintHelper
+    public static class IPNetworkExtensions
     {
         private readonly static uint[] _blockSizes;
 
-        static UintHelper()
+        static IPNetworkExtensions()
         {
             _blockSizes = Enumerable.Range(0, 33)
                 .Select(cidr => (uint)1 << (32 - cidr))
                 .ToArray();
         }
 
-        public static IEnumerable<(uint address, int cidr)> ConsolidateCidrs(this IEnumerable<(uint address, int cidr)> cidrAddresses)
+        public static IEnumerable<IPNetwork> ConsolidateCidrs(this IEnumerable<IPNetwork> values)
         {
-            return cidrAddresses
-                .OrderBy(t => t.address)
-                .Select(t => (t.address, t.address + _blockSizes[t.cidr]))
+            return values
+                .Select(value => {
+                    var start = ToUnsignedInt(value.FirstIpAddress);
+                    return (start: start, end: start + _blockSizes[value.Cidr]);
+                })
+                .OrderBy(t => t.start)
                 .GetContiguousValues()
-                .SelectMany(t => GetCidrs(t.start, t.end));
+                .SelectMany(t => GetCidrs(t.start, t.end))
+                .Select(t => new IPNetwork(ToIPAddress(t.address), t.cidr));
         }
 
-        public static IEnumerable<(uint start, uint end)> GetContiguousValues(this IEnumerable<(uint start, uint end)> values)
+        private static uint ToUnsignedInt(IPAddress ipAddress)
+        {
+            var bytes = ipAddress.GetAddressBytes();
+            return ((((((uint)bytes[0] << 8) | bytes[1]) << 8) | bytes[2]) << 8) | bytes[3];
+        }
+
+        private static IPAddress ToIPAddress(uint value)
+        {
+            return new IPAddress(
+                new byte[]
+                { 
+                    (byte)((value >> 24) & 0xff),
+                    (byte)((value >> 16) & 0xff), 
+                    (byte)((value >> 8) & 0xff), 
+                    (byte)(value & 0xff)
+                });
+        }
+
+        private static IEnumerable<(uint start, uint end)> GetContiguousValues(this IEnumerable<(uint start, uint end)> values)
         {
             var iterator = values.GetEnumerator();
             if (!iterator.MoveNext())
@@ -68,7 +91,7 @@ namespace Cidr
             yield return (start, end);
         }
 
-        public static IEnumerable<(uint, int)> GetCidrs(uint start, uint end)
+        private static IEnumerable<(uint address, int cidr)> GetCidrs(uint start, uint end)
         {
             var count = end - start;
             
